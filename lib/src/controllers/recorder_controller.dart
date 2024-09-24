@@ -61,12 +61,6 @@ class RecorderController extends ChangeNotifier {
 
   Timer? _timer;
 
-  bool _hasPermission = false;
-
-  /// A boolean to check for microphone permission status. It is true when
-  /// user has provided the microphone permission otherwise false.
-  bool get hasPermission => _hasPermission;
-
   /// IOS only.
   ///
   /// Overrides AVAudioSession settings with
@@ -156,14 +150,6 @@ class RecorderController extends ChangeNotifier {
   /// Reported duration is in [milliseconds].
   ValueNotifier<int> get currentScrolledDuration => _currentScrolledDuration;
 
-  /// Calls platform to start recording.
-  ///
-  /// First, it checks for microphone permission, if permission
-  /// isn't provided then function will complete with [RecorderState]
-  /// set to [stopped].
-  ///
-  /// [checkPermission] is used to check microphone permission. Follow
-  /// it's documentation for more info.
   ///
   /// Path parameter is optional and if not provided current datetime
   /// will be used for file name and default extension will be .m4a.
@@ -189,52 +175,46 @@ class RecorderController extends ChangeNotifier {
     int? bitRate,
   }) async {
     if (!_recorderState.isRecording) {
-      await checkPermission();
-      if (_hasPermission) {
-        if (Platform.isAndroid && _recorderState.isStopped) {
-          await _initRecorder(
-            path: path,
-            androidEncoder: androidEncoder,
-            androidOutputFormat: androidOutputFormat,
-            sampleRate: sampleRate,
-            bitRate: bitRate,
-          );
+      if (Platform.isAndroid && _recorderState.isStopped) {
+        await _initRecorder(
+          path: path,
+          androidEncoder: androidEncoder,
+          androidOutputFormat: androidOutputFormat,
+          sampleRate: sampleRate,
+          bitRate: bitRate,
+        );
+      }
+      if (_recorderState.isPaused) {
+        _isRecording = await AudioWaveformsInterface.instance.resume();
+        if (_isRecording) {
+          _startTimer();
+          _setRecorderState(RecorderState.recording);
+        } else {
+          throw "Failed to resume recording";
         }
-        if (_recorderState.isPaused) {
-          _isRecording = await AudioWaveformsInterface.instance.resume();
-          if (_isRecording) {
-            _startTimer();
-            _setRecorderState(RecorderState.recording);
-          } else {
-            throw "Failed to resume recording";
-          }
-          notifyListeners();
-          return;
+        notifyListeners();
+        return;
+      }
+      if (Platform.isIOS) {
+        _setRecorderState(RecorderState.initialized);
+      }
+      if (_recorderState.isInitialized) {
+        _isRecording = await AudioWaveformsInterface.instance.record(
+          audioFormat: Platform.isIOS
+              ? iosEncoder?.index ?? this.iosEncoder.index
+              : androidEncoder?.index ?? this.androidEncoder.index,
+          sampleRate: sampleRate ?? this.sampleRate,
+          bitRate: bitRate ?? this.bitRate,
+          path: path,
+          useLegacyNormalization: _useLegacyNormalization,
+          overrideAudioSession: overrideAudioSession,
+        );
+        if (_isRecording) {
+          _setRecorderState(RecorderState.recording);
+          _startTimer();
+        } else {
+          throw "Failed to start recording";
         }
-        if (Platform.isIOS) {
-          _setRecorderState(RecorderState.initialized);
-        }
-        if (_recorderState.isInitialized) {
-          _isRecording = await AudioWaveformsInterface.instance.record(
-            audioFormat: Platform.isIOS
-                ? iosEncoder?.index ?? this.iosEncoder.index
-                : androidEncoder?.index ?? this.androidEncoder.index,
-            sampleRate: sampleRate ?? this.sampleRate,
-            bitRate: bitRate ?? this.bitRate,
-            path: path,
-            useLegacyNormalization: _useLegacyNormalization,
-            overrideAudioSession: overrideAudioSession,
-          );
-          if (_isRecording) {
-            _setRecorderState(RecorderState.recording);
-            _startTimer();
-          } else {
-            throw "Failed to start recording";
-          }
-          notifyListeners();
-        }
-      } else {
-        _setRecorderState(RecorderState.stopped);
         notifyListeners();
       }
     }
@@ -262,23 +242,6 @@ class RecorderController extends ChangeNotifier {
       throw "Failed to initialize recorder";
     }
     notifyListeners();
-  }
-
-  /// Checks for microphone permission and return true if permission was
-  /// provided otherwise returns false.
-  ///
-  /// If this is first time check for microphone permission then it
-  /// opens a platform dialog with description string which was set
-  /// during initial set up.
-  ///
-  /// This method is also called during [record].
-  Future<bool> checkPermission() async {
-    final result = await AudioWaveformsInterface.instance.checkPermission();
-    if (result) {
-      _hasPermission = result;
-    }
-    notifyListeners();
-    return _hasPermission;
   }
 
   /// Pauses the current recording. Call [record] to resume recording.
