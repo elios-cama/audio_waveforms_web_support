@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:math' show max;
+import 'package:flutter/foundation.dart';
+import 'package:universal_html/html.dart' hide Platform;
 import 'package:universal_io/io.dart';
 import 'package:flutter/material.dart';
 
@@ -286,6 +288,12 @@ class RecorderController extends ChangeNotifier {
         _elapsedDuration = Duration.zero;
         _setRecorderState(RecorderState.stopped);
         if (callReset) reset();
+        if (kIsWeb) {
+          final blob = Blob([audioInfo[0]], 'audio/wav');
+          final url = Url.createObjectUrlFromBlob(blob);
+          return url;
+        }
+
         return audioInfo[0];
       } else {
         throw "Failed stop recording";
