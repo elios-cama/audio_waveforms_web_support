@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:audio_waveforms/audio_waveforms.dart';
 import 'package:audio_waveforms/src/base/constants.dart';
@@ -7,6 +6,7 @@ import 'package:audio_waveforms/src/base/platform_streams.dart';
 import 'package:audio_waveforms/src/base/player_identifier.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:universal_io/io.dart';
 
 part '../base/audio_waveforms_interface.dart';
 
@@ -42,14 +42,6 @@ class PlayerController extends ChangeNotifier {
   /// cause reporting duration at faster rate which also causes UI to look
   /// smoother.
   ///
-  /// **Important** -: As duration is reported from platform, low-end devices
-  /// may have higher impact if UpdateFrequency is set to high.
-  ///
-  /// Defaults to low (updates every 200 milliseconds).
-  ///
-  /// See also:
-  /// * [UpdateFrequency]
-  UpdateFrequency updateFrequency = UpdateFrequency.low;
 
   /// A stream to get current state of the player. This stream
   /// will emit event whenever there is change in the playerState.
@@ -120,7 +112,7 @@ class PlayerController extends ChangeNotifier {
     final isPrepared = await AudioWaveformsInterface.instance.preparePlayer(
       path: path,
       key: playerKey,
-      frequency: updateFrequency.value,
+      frequency: 200,
       volume: volume,
     );
     if (isPrepared) {
